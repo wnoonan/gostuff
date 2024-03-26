@@ -87,7 +87,8 @@ func MatchUsers(users []User, sentryUsers []users.SentryUser, pagerDutyUsers []u
 func MatchServices(services []Service, sentryProjects []services.SentryProject, pagerdutyServices []services.PagerdutyService, datadogServices []services.DatadogService) []Service {
 	for i, service := range services {
 		serviceSlug := strings.ReplaceAll(strings.ToLower(service.Name), " ", "-")
-		serviceNames := []string{service.Name, serviceSlug}
+		serviceSlugUnderscore := strings.ReplaceAll(strings.ToLower(service.Name), " ", "_")
+		serviceNames := []string{service.Name, serviceSlug, serviceSlugUnderscore}
 
 		for _, sentryProject := range sentryProjects {
 			if slices.Contains(serviceNames, sentryProject.Name) {
