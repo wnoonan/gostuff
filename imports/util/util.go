@@ -86,22 +86,25 @@ func MatchUsers(users []User, sentryUsers []users.SentryUser, pagerDutyUsers []u
 
 func MatchServices(services []Service, sentryProjects []services.SentryProject, pagerdutyServices []services.PagerdutyService, datadogServices []services.DatadogService) []Service {
 	for i, service := range services {
-		serviceSlug := strings.ReplaceAll(strings.ToLower(service.Name), " ", "-")
-		serviceSlugUnderscore := strings.ReplaceAll(strings.ToLower(service.Name), " ", "_")
-		serviceNames := []string{service.Name, serviceSlug, serviceSlugUnderscore}
+		serviceName := strings.ToLower(service.Name)
+		serviceSlug := strings.ReplaceAll(strings.ToLower(serviceName), " ", "-")
+		serviceSlugUnderscore := strings.ReplaceAll(strings.ToLower(serviceName), "-", "_")
+		serviceSpaces := strings.ReplaceAll(strings.ToLower(serviceName), "-", " ")
+		serviceNames := []string{service.Name, serviceName, serviceSlug, serviceSlugUnderscore}
+		serviceNamesPagerduty := []string{service.Name, serviceName, serviceSlug, serviceSlugUnderscore, serviceSpaces}
 
 		for _, sentryProject := range sentryProjects {
-			if slices.Contains(serviceNames, sentryProject.Name) {
+			if slices.Contains(serviceNames, strings.ToLower(sentryProject.Name)) {
 				services[i].SentryProject = sentryProject
 			}
 		}
 		for _, pagerdutyService := range pagerdutyServices {
-			if slices.Contains(serviceNames, pagerdutyService.Name) {
+			if slices.Contains(serviceNamesPagerduty, strings.ToLower(pagerdutyService.Name)) {
 				services[i].PagerdutyService = pagerdutyService
 			}
 		}
 		for _, datadogService := range datadogServices {
-			if slices.Contains(serviceNames, datadogService.Name) {
+			if slices.Contains(serviceNames, strings.ToLower(datadogService.Name)) {
 				services[i].DatadogService = datadogService
 			}
 		}
@@ -234,7 +237,7 @@ func WriteServiceImports(services []Service, file string) error {
 		w.WriteString(
 			fmt.Sprintf(
 				`
-# Service %s\n
+# Service %s
 				`,
 				service.Name,
 			),
@@ -261,7 +264,7 @@ import {
 					`
 import {
   id = "%s"
-  to = module.%s.pagerduty_service.service[0]
+  to = module.%s.pagerduty_service.pagerduty-service[0]
 }
 
 					 `,
@@ -276,7 +279,7 @@ import {
 					`
 import {
   id = "%s"
-  to = module.%s.datadog_service_definition_yaml.service_definition[0]
+  to = module.%s.datadog_service_definition_yaml.datadog-service-definition[0]
 }
 
 					 `,
