@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 
+	"github.com/wnoonan/gostuff/imports/sentry"
 	"github.com/wnoonan/gostuff/imports/services"
 	"github.com/wnoonan/gostuff/imports/users"
 )
@@ -298,4 +300,33 @@ import {
 
 func (s *Service) Module() string {
 	return strings.ReplaceAll(strings.ToLower(s.Name), "-", "_")
+}
+
+func WritePagerdutyServiceIntegrationImports(integrations []sentry.PagerdutyServiceIntegration, file string) error {
+	f, err := os.Create(file)
+	if err != nil {
+		return err
+	}
+	w := bufio.NewWriter(f)
+
+	for _, integration := range integrations {
+		w.WriteString(
+			fmt.Sprintf(
+				`
+import {
+	id = "teamsnap/%s/%s"
+	to = module.%s.sentry_integration_pagerduty.pagerduty
+}
+			`,
+				integration.IntegrationId,
+				strconv.Itoa(integration.ServiceId),
+				strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(strings.ToLower(integration.ServiceName), "-", "_"), "(terraform)", "")),
+			),
+		)
+	}
+
+	w.Flush()
+	f.Close()
+
+	return nil
 }
