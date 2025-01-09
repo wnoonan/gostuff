@@ -1,0 +1,262 @@
+basePath: /api/v1
+definitions:
+  api.Job:
+    properties:
+      command:
+        example: echo 'Hello, World!'
+        type: string
+      completed:
+        example: "2021-07-01T00:00:00Z"
+        type: string
+      created:
+        example: "2021-07-01T00:00:00Z"
+        type: string
+      error:
+        example: error message
+        type: string
+      executed:
+        example: true
+        type: boolean
+      id:
+        example: 123e4567-e89b-12d3-a456-426614174000
+        type: string
+      name:
+        example: Job Name
+        type: string
+      output:
+        example: Hello, World!
+        type: string
+      success:
+        example: true
+        type: boolean
+    type: object
+externalDocs:
+  description: OpenAPI
+  url: https://swagger.io/resources/open-api/
+host: localhost:8080
+info:
+  contact: {}
+  description: This is a simple job and queue api.
+  title: Jobs & Queue API
+  version: "1.0"
+paths:
+  /jobs:
+    get:
+      consumes:
+      - application/json
+      description: Get all jobs
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/api.Job'
+            type: array
+      summary: List jobs
+      tags:
+      - jobs
+    post:
+      consumes:
+      - application/json
+      description: Add a new job
+      parameters:
+      - description: Job object
+        in: body
+        name: job
+        required: true
+        schema:
+          $ref: '#/definitions/api.Job'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/api.Job'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Add a job
+      tags:
+      - jobs
+  /jobs/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a job by ID
+      parameters:
+      - description: Job ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+        "204":
+          description: No Content
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete a job
+      tags:
+      - jobs
+    get:
+      consumes:
+      - application/json
+      description: Get a job by ID
+      parameters:
+      - description: Job ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.Job'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Show a job
+      tags:
+      - jobs
+    patch:
+      consumes:
+      - application/json
+      description: Update a job by ID
+      parameters:
+      - description: Job ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Add job
+        in: body
+        name: job
+        required: true
+        schema:
+          $ref: '#/definitions/api.Job'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.Job'
+        "204":
+          description: No Content
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update a job
+      tags:
+      - jobs
+  /queue:
+    delete:
+      consumes:
+      - application/json
+      description: Remove all jobs from the queue
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+      summary: Clear the queue
+      tags:
+      - queue
+    get:
+      consumes:
+      - application/json
+      description: Get all jobs in the queue
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/api.Job'
+            type: array
+      summary: Show the queue
+      tags:
+      - queue
+    put:
+      consumes:
+      - application/json
+      description: Add a job to the queue
+      parameters:
+      - description: Job ID
+        in: path
+        name: job_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            items:
+              $ref: '#/definitions/api.Job'
+            type: array
+        "204":
+          description: No Content
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Enqueue a job
+      tags:
+      - queue
+  /queue/{job_id}:
+    delete:
+      consumes:
+      - application/json
+      description: Remove a job from the queue
+      parameters:
+      - description: Job ID
+        in: path
+        name: job_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            items:
+              $ref: '#/definitions/api.Job'
+            type: array
+        "204":
+          description: No Content
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Dequeue a job
+      tags:
+      - queue
+swagger: "2.0"

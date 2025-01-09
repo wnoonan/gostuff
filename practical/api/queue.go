@@ -1,28 +1,47 @@
 package api
 
-type Queue struct {
-	Jobs []Job `json:"jobs"`
+type Queuer interface {
+	// Enqueue adds a job to the queue for execution
+	Enqueue(*Job)
+	// Queued returns all jobs in the queue
+	Queued() []*Job
+	// Dequeue removes a job from the queue
+	Dequeue(*Job)
+	// Clear removes all jobs from the queue
+	Clear()
 }
 
-func NewQueue() *Queue {
-	return &Queue{
-		Jobs: []Job{},
-	}
+type queue struct {
+	jobs []*Job
 }
 
-func (q *Queue) Enqueue(job Job) {
-	q.Jobs = append(q.Jobs, job)
-	go func() {
-		job.Execute()
-		defer q.removeJob(job)
-	}()
+func NewQueue() Queuer {
+	return &queue{}
 }
 
-func (q *Queue) removeJob(job Job) {
-	for i, j := range q.Jobs {
+func (q *queue) Enqueue(job *Job) {
+	q.jobs = append(q.jobs, job)
+	go job.Execute()
+}
+
+func (q *queue) Queued() []*Job {
+	return q.jobs
+}
+
+func (q *queue) Dequeue(job *Job) {
+	for i, j := range q.jobs {
 		if j.ID == job.ID {
-			q.Jobs = append((q.Jobs)[:i], (q.Jobs)[i+1:]...)
+			job.Executed = false
+			q.jobs = append(q.jobs[:i], q.jobs[i+1:]...)
 			break
 		}
 	}
+}
+
+func (q *queue) Clear() {
+	for _, job := range q.jobs {
+		job.Executed = false
+	}
+
+	q.jobs = []*Job{}
 }

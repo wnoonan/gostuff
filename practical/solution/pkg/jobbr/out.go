@@ -2,7 +2,9 @@ package jobbr
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
+	"time"
 
 	"github.com/pterm/pterm"
 )
@@ -20,6 +22,8 @@ type Outputter interface {
 	ShowJob(job *Job) error
 	// CreateJob creates a new job
 	CreateJob() error
+	// Delete Job deletes a job
+	DeleteJob() error
 }
 
 type out struct {
@@ -37,14 +41,20 @@ func (d *out) RootOpts() error {
 	var opts []string
 
 	optActions := map[string]func() error{
-		"Queue Jobs": d.QueueJobs,
-		"Show Queue": d.ShowQueue,
-		"Create Job": d.CreateJob,
+		"1. Queue Jobs":  d.QueueJobs,
+		"2. Show Queue":  d.ShowQueue,
+		"3. Clear Queue": d.ClearQueue,
+		"4. Dequeue Job": d.DequeueJob,
+		"5. Create Job":  d.CreateJob,
+		"6. Show Jobs":   d.ShowJobs,
+		"7. Delete Job":  d.DeleteJob,
 	}
 
 	for opt := range optActions {
 		opts = append(opts, opt)
 	}
+
+	sort.Strings(opts)
 
 	selectedOption, err := pterm.DefaultInteractiveSelect.WithOptions(opts).Show()
 	if err != nil {
@@ -62,10 +72,20 @@ func (d *out) QueueJobs() error {
 		return fmt.Errorf("failed to get jobs: %w", err)
 	}
 
-	for _, job := range *jobs {
+	if len(jobs) == 0 {
+		pterm.Info.Println("No jobs available")
+		return d.RootOpts()
+	}
+
+	for _, job := range jobs {
 		if !job.Executed {
 			opts = append(opts, job.Name)
 		}
+	}
+
+	if len(opts) == 0 {
+		pterm.Info.Println("No jobs available to queue")
+		return d.RootOpts()
 	}
 
 	printer := pterm.DefaultInteractiveMultiselect.
@@ -79,9 +99,9 @@ func (d *out) QueueJobs() error {
 	}
 
 	for _, opt := range selectedOptions {
-		for _, job := range *jobs {
+		for _, job := range jobs {
 			if job.Name == opt {
-				d.jobber.Enqueue(&job)
+				d.jobber.Enqueue(job)
 			}
 		}
 	}
@@ -95,13 +115,54 @@ func (d *out) ShowQueue() error {
 		return fmt.Errorf("failed to get queue: %w", err)
 	}
 
-	jobs := queue.Jobs
+	if len(queue) == 0 {
+		pterm.Info.Println("No jobs in queue")
+		return d.RootOpts()
+	}
+
+	jobsAndSpinners := map[string]*pterm.SpinnerPrinter{}
+
 	multi := pterm.DefaultMultiPrinter
 
-	for _, job := range jobs {
-		_, err := pterm.DefaultSpinner.WithWriter(multi.NewWriter()).Start(job.Name)
+	for _, job := range queue {
+		spinner, err := pterm.DefaultSpinner.WithWriter(multi.NewWriter()).Start(job.Name)
 		if err != nil {
 			return fmt.Errorf("failed to start spinner while viewing queue: %w", err)
+		}
+		jobsAndSpinners[job.ID] = spinner
+		if job.Executed && job.Success {
+			jobsAndSpinners[job.ID].Success(job.Name)
+		} else if job.Executed && !job.Success {
+			jobsAndSpinners[job.ID].Fail(job.Name)
+		}
+	}
+
+	multi.Start()
+
+	for {
+		time.Sleep(1 * time.Second)
+		queue, err := d.jobber.Queue()
+		if err != nil || len(queue) == 0 {
+			break
+		}
+
+		for _, job := range queue {
+			if job.Executed && job.Success {
+				jobsAndSpinners[job.ID].Success(job.Name)
+			} else if job.Executed && !job.Success {
+				jobsAndSpinners[job.ID].Fail(job.Name)
+			}
+		}
+
+		allExecuted := true
+		for _, job := range queue {
+			if !job.Executed {
+				allExecuted = false
+			}
+		}
+
+		if allExecuted {
+			break
 		}
 	}
 
@@ -116,12 +177,17 @@ func (d *out) ShowJobs() error {
 		return fmt.Errorf("failed to get jobs: %w", err)
 	}
 
+	if len(jobs) == 0 {
+		pterm.Info.Println("No jobs available")
+		return d.RootOpts()
+	}
+
 	var opts []string
 	optJobs := map[string]*Job{}
 
-	for _, job := range *jobs {
+	for _, job := range jobs {
 		opts = append(opts, job.Name)
-		optJobs[job.Name] = &job
+		optJobs[job.Name] = job
 	}
 
 	selectedOption, err := pterm.DefaultInteractiveSelect.WithOptions(opts).Show()
@@ -142,6 +208,7 @@ func (d *out) ShowJob(job *Job) error {
 		{"Error", job.Error},
 		{"Created", job.Created.String()},
 		{"Completed", job.Completed.String()},
+		{"Executed", strconv.FormatBool(job.Executed)},
 	}
 
 	pterm.DefaultTable.WithHasHeader().WithData(tableData).Render()
@@ -181,6 +248,87 @@ func (d *out) CreateJob() error {
 	if err != nil {
 		return fmt.Errorf("failed to create job: %w", err)
 	}
+
+	pterm.Info.Printf("Job %s created", jobName)
+
+	return d.RootOpts()
+}
+
+func (d *out) ClearQueue() error {
+	err := d.jobber.ClearQueue()
+	if err != nil {
+		return fmt.Errorf("failed to clear queue: %w", err)
+	}
+
+	pterm.Info.Println("Queue cleared")
+
+	return d.RootOpts()
+}
+
+func (d *out) DequeueJob() error {
+	jobs, err := d.jobber.Queue()
+	if err != nil {
+		return fmt.Errorf("failed to get jobs: %w", err)
+	}
+
+	if len(jobs) == 0 {
+		pterm.Info.Println("No jobs in queue")
+		return d.RootOpts()
+	}
+
+	var opts []string
+	optJobs := map[string]*Job{}
+
+	for _, job := range jobs {
+		opts = append(opts, job.Name)
+		optJobs[job.Name] = job
+	}
+
+	selectedOption, err := pterm.DefaultInteractiveSelect.WithOptions(opts).Show()
+	if err != nil {
+		return fmt.Errorf("failed to select option: %w", err)
+	}
+
+	_, err = d.jobber.Dequeue(optJobs[selectedOption])
+	if err != nil {
+		return fmt.Errorf("failed to dequeue job: %w", err)
+	}
+
+	pterm.Info.Printf("Job %s dequeued", selectedOption)
+
+	return d.RootOpts()
+}
+
+func (d *out) DeleteJob() error {
+	jobs, err := d.jobber.Jobs()
+	if err != nil {
+		return fmt.Errorf("failed to get jobs: %w", err)
+	}
+
+	if len(jobs) == 0 {
+		pterm.Info.Println("No jobs available")
+		return d.RootOpts()
+	}
+
+	var opts []string
+	optJobs := map[string]*Job{}
+
+	for _, job := range jobs {
+		opts = append(opts, job.Name)
+		optJobs[job.Name] = job
+	}
+
+	selectedOption, err := pterm.DefaultInteractiveSelect.WithOptions(opts).Show()
+	if err != nil {
+		return fmt.Errorf("failed to select option: %w", err)
+	}
+
+	err = d.jobber.DeleteJob(optJobs[selectedOption])
+	if err != nil {
+		return fmt.Errorf("failed to delete job: %w", err)
+	}
+
+	pterm.Info.Printf("Job %s deleted", selectedOption)
 
 	return d.RootOpts()
 }
